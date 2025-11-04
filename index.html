@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>姿勢偵測骨架</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- 引入 TensorFlow.js 與 MoveNet 模型 -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+</head>
+<body>
+  <h2>即時骨架偵測</h2>
+  <video id="video" autoplay playsinline style="display:none"></video>
+  <canvas id="canvas"></canvas>
+  <script src="script.js"></script>
+</body>
+</html>
