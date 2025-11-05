@@ -1,17 +1,31 @@
-body {
-  text-align: center;
-  background-color: #111;
-  color: white;
-  font-family: sans-serif;
+body { 
+  margin:0; 
+  background:#111; 
+  color:#eee; 
+  font-family:system-ui, -apple-system, "Segoe UI", Roboto; 
 }
-
-video, canvas {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  border-radius: 10px;
+#wrap { 
+  position:relative; 
+  width: 640px; 
+  margin:20px auto; 
 }
-
-canvas {
-  z-index: 2;
+video#video { 
+  display:none; /* 影片隱藏，只顯示 Canvas */ 
+}
+canvas#canvas { 
+  background: transparent; 
+  display:block; 
+  width:640px; 
+  height:480px; 
+  border:1px solid #333; 
+}
+#msg { 
+  text-align:center; 
+  margin-top:10px; 
+  color:#ffb86b; 
+}
+#err { 
+  color:#ff6b6b; 
+  text-align:center; 
+  margin-top:6px; 
 }
