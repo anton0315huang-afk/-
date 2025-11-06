@@ -1,31 +1,56 @@
 body { 
-  margin:0; 
-  background:#111; 
-  color:#eee; 
-  font-family:system-ui, -apple-system, "Segoe UI", Roboto; 
+  margin: 0; 
+  padding: 30px 0; /* 增加上下留白 */
+  background: #1e1e1e; /* 深灰背景 */
+  color: #e0e0e0; /* 淺灰文字 */
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* 現代字體 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh; /* 確保內容垂直居中 */
 }
+
 #wrap { 
-  position:relative; 
-  width: 640px; 
-  margin:20px auto; 
+  position: relative; 
+  width: 800px; /* 視窗寬度放大到 800px */
+  margin: 0 auto; 
+  background: #252526; /* 容器背景色 */
+  border-radius: 12px; /* 圓角邊框 */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05); /* 立體感陰影 */
+  padding: 20px;
 }
+
 video#video { 
-  display:none; /* 影片隱藏，只顯示 Canvas */ 
+  display: none; /* 影片隱藏 */
 }
+
+/* 假設您的 JS 已經將 Canvas 的實際解析度 (width/height 屬性) 設置為 640x480 */
 canvas#canvas { 
-  background: transparent; 
-  display:block; 
-  width:640px; 
-  height:480px; 
-  border:1px solid #333; 
+  background: #ffffff; /* Canvas 預設背景色 */
+  display: block; 
+  /* 顯示尺寸放大，並保持長寬比 (640/480 = 1.33)，新尺寸 800x600 */
+  width: 800px; 
+  height: 600px; 
+  border-radius: 8px; /* Canvas 圓角 */
+  margin: 0 auto; /* 居中 */
+  border: 1px solid #444; 
 }
+
 #msg { 
-  text-align:center; 
-  margin-top:10px; 
-  color:#ffb86b; 
+  text-align: center; 
+  margin-top: 15px; 
+  color: #90ee90; /* 淺綠色，表示成功或提示 */
+  font-size: 1.1em;
+  font-weight: 500;
 }
+
 #err { 
-  color:#ff6b6b; 
-  text-align:center; 
-  margin-top:6px; 
+  color: #ff6b6b; /* 醒目紅色，表示錯誤 */
+  text-align: center; 
+  margin-top: 10px; 
+  font-size: 1.1em;
+  font-weight: bold;
+  background: rgba(255, 107, 107, 0.1);
+  padding: 5px;
+  border-radius: 4px;
 }

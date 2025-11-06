@@ -32,9 +32,15 @@ async function setupCamera() {
 // ---- 主程式 (保持不變) ----
 async function runPoseDetection() {
   const detector = await poseDetection.createDetector(
-    poseDetection.SupportedModels.MoveNet,
-    { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
-  );
+  poseDetection.SupportedModels.MoveNet,
+  { 
+    modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
+    // 增加一個優化參數：讓模型知道我們希望偵測一個完整的人
+    modelConfig: {
+      enableSmoothing: true // 開啟平滑，減少抖動
+    }
+  }
+);
 
   await setupCamera();
   await video.play().catch(() => {});
