@@ -1,37 +1,22 @@
-// 完整整合版（不使用額外模型）：
-// - MoveNet 偵測骨架（頭部位置與大小）
-// - 不旋轉頭圖（以鼻子為中心）
-// - 動態縮放頭圖（肩寬/眼距）並平滑
-// - 無模型下估計下嘴唇：在 MoveNet 定位的 face ROI 做 downscale 顏色投影（R - (G+B)/2）找出 lower lip 行位置
-// - 將 lowerLipY 與鼻子做尺度正規化，接著 baseline + 平滑 + hysteresis + 多幀確認 判斷 mouthOpen
-// 可直接替換你現有檔案（只需確保已引入 MoveNet、且頁面有 video + canvas 元素）
-
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
 // 設定與資源
-const edges = {
-  "5,7": "#FF5252", "7,9": "#FF5252",
-  "6,8": "#FF5252", "8,10": "#FF5252",
-  "5,6": "#FFD740", "5,11": "#64DD17",
-  "6,12": "#64DD17", "11,12": "#FFD740",
-  "11,13": "#40C4FF", "13,15": "#40C4FF",
-  "12,14": "#40C4FF", "14,16": "#40C4FF"
-};
-
+// 這裡保留您希望使用的四張頭部圖片
 const eyeMouthImgs = {
   openEyeOpenMouth: new Image(),
   openEyeCloseMouth: new Image(),
   closeEyeOpenMouth: new Image(),
   closeEyeCloseMouth: new Image()
 };
+// 假設這些是您要保留的帶有背景的頭部圖片
 eyeMouthImgs.openEyeOpenMouth.src = "https://i.postimg.cc/RhcMz7xL/1.png";
 eyeMouthImgs.openEyeCloseMouth.src = "https://i.postimg.cc/wMh6dXYm/3.png";
 eyeMouthImgs.closeEyeOpenMouth.src = "https://i.postimg.cc/kGxndQPW/2.png";
 eyeMouthImgs.closeEyeCloseMouth.src = "https://i.postimg.cc/x8K0SvVH/4.png";
 
-// ---- camera setup ----
+// ---- camera setup (保持不變) ----
 async function setupCamera() {
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { width: 640, height: 480 },
@@ -44,7 +29,7 @@ async function setupCamera() {
   return video;
 }
 
-// ---- 主程式 ----
+// ---- 主程式 (保持不變) ----
 async function runPoseDetection() {
   const detector = await poseDetection.createDetector(
     poseDetection.SupportedModels.MoveNet,
@@ -52,39 +37,35 @@ async function runPoseDetection() {
   );
 
   await setupCamera();
-  await video.play().catch(() => {}); // 若被瀏覽器策略阻擋，caller 可在互動後再呼叫
+  await video.play().catch(() => {});
   canvas.width = video.videoWidth || video.width;
   canvas.height = video.videoHeight || video.height;
 
   let frameCount = 0;
-  let prevState = { eyesOpen: true, mouthOpen: false };
+  let prevState = { eyesOpen: true, mouthOpen: false }; 
   let stableHead = { x: canvas.width / 2, y: canvas.height / 2, scale: 220 };
-  // store last successful lowerLipY and control rate
+  
   prevState._lastLowerLipY = null;
   prevState._lastLowerLipFrame = 0;
 
-  // tmp canvas reuse for ROI processing
   const tmpCanvas = document.createElement('canvas');
   const tctx = tmpCanvas.getContext('2d');
 
   async function detect() {
     requestAnimationFrame(detect);
 
-    // 每 2 幀做一次 pose (效能考量)
     if (frameCount % 2 === 0) {
       const poses = await detector.estimatePoses(video);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       poses.forEach(pose => {
-        // 嘗試估計 lowerLipY（每 N 幀執行一次）
-        const lowerLipInterval = 4; // 每 4 幀做一次像素偵測
+        // 1. 估計嘴唇 Y 座標
+        const lowerLipInterval = 4;
         let lowerLipY = null;
         if (frameCount - prevState._lastLowerLipFrame >= lowerLipInterval) {
           lowerLipY = estimateLowerLipYFromFrame(pose.keypoints, video, tctx, tmpCanvas, {
-            targetWidth: 140,
-            redThreshold: 18,
-            minMaskPixels: 20
+            targetWidth: 140, redThreshold: 18, minMaskPixels: 20
           });
           prevState._lastLowerLipFrame = frameCount;
           if (lowerLipY !== null) prevState._lastLowerLipY = lowerLipY;
@@ -92,8 +73,20 @@ async function runPoseDetection() {
           lowerLipY = prevState._lastLowerLipY;
         }
 
-        drawHeadAndFace(pose.keypoints, stableHead, prevState, lowerLipY);
-        drawSkeleton(pose.keypoints, stableHead.scale);
+        // 2. 計算頭部狀態
+        calculateHeadState(pose.keypoints, stableHead, prevState, lowerLipY); 
+        
+        // 3. 繪圖：從底層到頂層
+        
+        // a. 繪製頭部圖片 (圖層最底)
+        drawHeadImage(stableHead, prevState);
+        
+        // b. 繪製身體部位 (圖層中間 - 包含軀幹和四肢)
+        drawBodyParts(pose.keypoints, stableHead.scale); 
+        
+        // c. 繪製骨架點 (圖層最上)
+        drawSkeleton(pose.keypoints, stableHead.scale); 
+        
       });
     }
 
@@ -103,32 +96,135 @@ async function runPoseDetection() {
   detect();
 }
 
-// ---- 繪製骨架 ----
-function drawSkeleton(keypoints, headScale = 220) {
-  const baseLineWidth = Math.max(8, Math.min(80, headScale / 4));
-  Object.keys(edges).forEach(edge => {
-    const [p1, p2] = edge.split(",").map(Number);
-    const kp1 = keypoints[p1];
-    const kp2 = keypoints[p2];
-    if (kp1.score > 0.3 && kp2.score > 0.3) {
-      ctx.beginPath();
-      ctx.moveTo(kp1.x, kp1.y);
-      ctx.lineTo(kp2.x, kp2.y);
-      ctx.lineWidth = baseLineWidth;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = edges[edge];
-      ctx.stroke();
-    }
-  });
+// ------------------------------------
+// 繪製頭部圖片 (圖層最底)
+// ------------------------------------
+function drawHeadImage(stableHead, prevState) {
+  let img;
+  if (prevState.eyesOpen && prevState.mouthOpen) img = eyeMouthImgs.openEyeOpenMouth;
+  else if (prevState.eyesOpen && !prevState.mouthOpen) img = eyeMouthImgs.openEyeCloseMouth;
+  else if (!prevState.eyesOpen && prevState.mouthOpen) img = eyeMouthImgs.closeEyeOpenMouth;
+  else img = eyeMouthImgs.closeEyeCloseMouth;
 
+  if (img && img.complete) {
+    const imgWidth = stableHead.scale;
+    const imgHeight = stableHead.scale;
+    const offsetY = 0; 
+
+    ctx.drawImage(img, 
+      stableHead.x - imgWidth / 2, 
+      stableHead.y - imgHeight / 2 + offsetY, 
+      imgWidth, 
+      imgHeight
+    );
+  }
+}
+
+// ------------------------------------
+// 繪製身體部位函式 (使用四個點繪製多邊形軀幹)
+// ------------------------------------
+
+function dist(a, b) { 
+  const dx = a.x - b.x; 
+  const dy = a.y - b.y; 
+  return Math.sqrt(dx * dx + dy * dy); 
+}
+
+function drawSegment(p1, p2, color, thickness) {
+  if (p1.score < 0.3 || p2.score < 0.3) return;
+
+  const segmentLength = dist(p1, p2);
+  const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+
+  ctx.save();
+  ctx.translate(p1.x, p1.y);
+  ctx.rotate(angle);
+
+  // 繪製膠囊形狀
+  ctx.beginPath();
+  ctx.arc(0, 0, thickness / 2, Math.PI / 2, Math.PI * 3 / 2); // 半圓在 p1 端
+  ctx.lineTo(segmentLength, -thickness / 2);
+  ctx.arc(segmentLength, 0, thickness / 2, Math.PI * 3 / 2, Math.PI / 2); // 半圓在 p2 端
+  ctx.lineTo(0, thickness / 2);
+  ctx.closePath();
+
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+}
+
+
+function drawBodyParts(keypoints, headScale) {
+  // 根據頭部大小調整粗細
+  const defaultThickness = Math.max(15, Math.min(80, headScale / 8)); 
+
+  const leftShoulder = keypoints[5];
+  const rightShoulder = keypoints[6];
+  const leftHip = keypoints[11];
+  const rightHip = keypoints[12];
+  
+  // ------------------------------------
+  // *** 核心修改：繪製四點多邊形軀幹 ***
+  // ------------------------------------
+  if (leftShoulder.score > 0.3 && rightShoulder.score > 0.3 && 
+      leftHip.score > 0.3 && rightHip.score > 0.3) {
+      
+    ctx.beginPath();
+    // 依序連接四個關鍵點
+    ctx.moveTo(leftShoulder.x, leftShoulder.y);  // 1. 左肩
+    ctx.lineTo(rightShoulder.x, rightShoulder.y); // 2. 右肩
+    ctx.lineTo(rightHip.x, rightHip.y);          // 3. 右髖
+    ctx.lineTo(leftHip.x, leftHip.y);            // 4. 左髖
+    ctx.closePath();
+    
+    // 讓軀幹的顏色略微透明，以便在頭部圖片下方有更好的融合效果
+    ctx.fillStyle = "rgba(255, 140, 0, 0.9)"; // 橘色，90% 不透明度
+    ctx.fill();
+    
+    // 選擇性：給軀幹加上一個外框
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+
+  // 右臂
+  drawSegment(keypoints[6], keypoints[8], "#8A2BE2", defaultThickness);       // 右肩-右肘 (藍紫色)
+  drawSegment(keypoints[8], keypoints[10], "#4169E1", defaultThickness * 0.8);  // 右肘-右手腕 (皇家藍)
+
+  // 左臂
+  drawSegment(keypoints[5], keypoints[7], "#8A2BE2", defaultThickness);       // 左肩-左肘 (藍紫色)
+  drawSegment(keypoints[7], keypoints[9], "#4169E1", defaultThickness * 0.8);  // 左肘-左手腕 (皇家藍)
+
+  // 右腿
+  drawSegment(keypoints[12], keypoints[14], "#20B2AA", defaultThickness * 1.1); // 右髖-右膝 (淺海綠)
+  drawSegment(keypoints[14], keypoints[16], "#008080", defaultThickness * 1.0); // 右膝-右腳踝 (青色)
+
+  // 左腿
+  drawSegment(keypoints[11], keypoints[13], "#20B2AA", defaultThickness * 1.1); // 左髖-左膝 (淺海綠)
+  drawSegment(keypoints[13], keypoints[15], "#008080", defaultThickness * 1.0); // 左膝-左腳踝 (青色)
+}
+
+
+// ---- 繪製骨架 (保持不變) ----
+function drawSkeleton(keypoints, headScale = 220) {
+  // 保持不變，只繪製關節點 (圓點)
+  
   keypoints.forEach(kp => {
     if (kp.score > 0.3) {
       const part = getBodyPart(kp, headScale);
       if (part) {
+        const radius = Math.round(part.radius * 0.7); 
         ctx.beginPath();
-        ctx.arc(kp.x, kp.y, part.radius, 0, Math.PI * 2);
-        ctx.fillStyle = part.color;
+        ctx.arc(kp.x, kp.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = part.color; 
         ctx.fill();
+        
+        if (kp.part === 'nose') {
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+        }
       }
     }
   });
@@ -136,6 +232,7 @@ function drawSkeleton(keypoints, headScale = 220) {
 
 function getBodyPart(keypoint, headScale = 220) {
   const scaleFactor = headScale / 220;
+  // 保持骨架點的定義，用於 drawSkeleton 繪製圓點
   switch (keypoint.part) {
     case "nose": return { color: "#FFD740", radius: Math.round(30 * scaleFactor) };
     case "leftShoulder": case "rightShoulder":
@@ -148,8 +245,10 @@ function getBodyPart(keypoint, headScale = 220) {
   }
 }
 
-// ---- 在畫布上繪製頭部與臉（不旋轉） ----
-function drawHeadAndFace(keypoints, stableHead, prevState, lowerLipYFromROI) {
+// ------------------------------------
+// 計算頭部狀態 (保持不變)
+// ------------------------------------
+function calculateHeadState(keypoints, stableHead, prevState, lowerLipYFromROI) {
   const nose = keypoints[0];
   const leftEye = keypoints[1];
   const rightEye = keypoints[2];
@@ -162,15 +261,15 @@ function drawHeadAndFace(keypoints, stableHead, prevState, lowerLipYFromROI) {
 
   if (nose.score < 0.3) return;
 
-  // 平滑頭位置
+  // 1. 平滑頭位置
   stableHead.x += (nose.x - stableHead.x) * 0.2;
   stableHead.y += (nose.y - stableHead.y) * 0.2;
 
-  // 眼睛狀態（只影響圖選擇）
+  // 2. 眼睛狀態
   const eyesOpen = leftEye.score > 0.5 && rightEye.score > 0.5;
   prevState.eyesOpen = eyesOpen;
 
-  // 計算 headSize（肩寬、眼距或耳距）
+  // 3. 計算 headSize
   function dist(a, b) { const dx = a.x - b.x; const dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
   let headSize = 220;
   const shoulderAvailable = leftShoulder.score > 0.3 && rightShoulder.score > 0.3;
@@ -188,7 +287,7 @@ function drawHeadAndFace(keypoints, stableHead, prevState, lowerLipYFromROI) {
   headSize = Math.max(MIN_HEAD, Math.min(MAX_HEAD, headSize));
   stableHead.scale += (headSize - stableHead.scale) * 0.15;
 
-  // ---- 嘴巴偵測：使用 ROI lowerLipY（若有），否則 fallback to mouth corners ----
+  // 4. 嘴巴偵測 (邏輯保持不變)
   if (prevState._mouthOpenCounter === undefined) prevState._mouthOpenCounter = 0;
   if (prevState._mouthCloseCounter === undefined) prevState._mouthCloseCounter = 0;
   if (prevState._smoothedNormalized === undefined) prevState._smoothedNormalized = 0;
@@ -198,7 +297,6 @@ function drawHeadAndFace(keypoints, stableHead, prevState, lowerLipYFromROI) {
 
   let mouthOpen = prevState.mouthOpen;
 
-  // 決定使用哪個 y 作為 mouth vertical indicator（prefer lowerLipYFromROI）
   let mouthIndicatorY = null;
   if (typeof lowerLipYFromROI === 'number') {
     mouthIndicatorY = lowerLipYFromROI;
@@ -207,9 +305,8 @@ function drawHeadAndFace(keypoints, stableHead, prevState, lowerLipYFromROI) {
   }
 
   if (mouthIndicatorY !== null) {
-    const normalized = (mouthIndicatorY - nose.y) / headSize;
+    const normalized = (mouthIndicatorY - nose.y) / stableHead.scale;
 
-    // baseline 收集（前幾幀當 neutral）
     const BASELINE_FRAMES = 30;
     if (prevState._baselineFrames < BASELINE_FRAMES) {
       prevState._baselineSum += normalized;
@@ -217,12 +314,10 @@ function drawHeadAndFace(keypoints, stableHead, prevState, lowerLipYFromROI) {
       prevState._baselineAvg = prevState._baselineSum / prevState._baselineFrames;
     }
 
-    // 平滑 normalized
     if (!prevState._smoothedNormalized && prevState._smoothedNormalized !== 0) prevState._smoothedNormalized = normalized;
     prevState._smoothedNormalized += (normalized - prevState._smoothedNormalized) * 0.12;
     const smoothed = prevState._smoothedNormalized;
 
-    // hysteresis thresholds
     const deltaOpen = 0.06;
     const deltaClose = 0.04;
     const openThreshold = prevState._baselineAvg + deltaOpen;
@@ -243,40 +338,25 @@ function drawHeadAndFace(keypoints, stableHead, prevState, lowerLipYFromROI) {
       prevState._mouthCloseCounter = 0;
       mouthOpen = prevState.mouthOpen;
     }
-
+    
     if (prevState._baselineFrames >= BASELINE_FRAMES) {
       prevState._baselineAvg += (normalized - prevState._baselineAvg) * 0.002;
     }
   } else {
-    // 無可用 indicator -> 維持上一幀狀態
     mouthOpen = prevState.mouthOpen;
   }
   prevState.mouthOpen = mouthOpen;
-
-  // 選圖並繪製（不旋轉）
-  let img;
-  if (eyesOpen && mouthOpen) img = eyeMouthImgs.openEyeOpenMouth;
-  else if (eyesOpen && !mouthOpen) img = eyeMouthImgs.openEyeCloseMouth;
-  else if (!eyesOpen && mouthOpen) img = eyeMouthImgs.closeEyeOpenMouth;
-  else img = eyeMouthImgs.closeEyeCloseMouth;
-
-  const imgWidth = stableHead.scale;
-  const imgHeight = stableHead.scale;
-  const offsetY = 0;
-  ctx.drawImage(img, stableHead.x - imgWidth / 2, stableHead.y - imgHeight / 2 + offsetY, imgWidth, imgHeight);
 }
 
-// ---- 無模型下估計下嘴唇的函式（顏色 + 投影法） ----
-// 參數：keypoints, video element, tctx (tmp canvas 2D context), tmpCanvas DOM element, opts
-// 回傳：lowerLipY (畫布座標) 或 null
+// ---- 無模型下估計下嘴唇的函式（保持不變） ----
 function estimateLowerLipYFromFrame(keypoints, videoEl, tctx, tmpCanvas, opts = {}) {
   const nose = keypoints[0];
+  const leftShoulder = keypoints[5];
+  const rightShoulder = keypoints[6];
   const leftEye = keypoints[1];
   const rightEye = keypoints[2];
   const leftEar = keypoints[3];
   const rightEar = keypoints[4];
-  const leftShoulder = keypoints[5];
-  const rightShoulder = keypoints[6];
 
   if (!nose || nose.score < 0.3) return null;
 
