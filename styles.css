@@ -1,56 +1,81 @@
+/* 基礎樣式 */
 body { 
   margin: 0; 
-  padding: 30px 0; /* 增加上下留白 */
-  background: #1e1e1e; /* 深灰背景 */
-  color: #e0e0e0; /* 淺灰文字 */
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* 現代字體 */
+  padding: 30px 0;
+  background: #1e1e1e;
+  color: #e0e0e0;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-start; /* 頂部對齊，讓標題在頂部 */
   align-items: center;
-  min-height: 100vh; /* 確保內容垂直居中 */
+  min-height: 100vh;
 }
 
+/* 主要容器，確保響應式 */
 #wrap { 
   position: relative; 
-  width: 800px; /* 視窗寬度放大到 800px */
+  width: 95%; 
+  max-width: 840px; /* 最大寬度設定為 840px (略大於 800px 配合 padding) */
   margin: 0 auto; 
-  background: #252526; /* 容器背景色 */
-  border-radius: 12px; /* 圓角邊框 */
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05); /* 立體感陰影 */
+  background: #252526; 
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
   padding: 20px;
 }
 
+/* 遊戲容器樣式 - 來自您 HTML 中的 game-container */
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+}
+
 video#video { 
-  display: none; /* 影片隱藏 */
+  display: none; 
 }
 
-/* 假設您的 JS 已經將 Canvas 的實際解析度 (width/height 屬性) 設置為 640x480 */
+/* Canvas 響應式調整 */
 canvas#canvas { 
-  background: #ffffff; /* Canvas 預設背景色 */
+  background: #ffffff;
   display: block; 
-  /* 顯示尺寸放大，並保持長寬比 (640/480 = 1.33)，新尺寸 800x600 */
-  width: 800px; 
-  height: 600px; 
-  border-radius: 8px; /* Canvas 圓角 */
-  margin: 0 auto; /* 居中 */
-  border: 1px solid #444; 
+  /* 限制最大寬度，高度按比例縮放 (4:3 比例) */
+  max-width: 100%; 
+  height: auto; 
+  aspect-ratio: 4 / 3; /* 保持 640x480 的 4:3 比例 */
+  border-radius: 8px;
+  margin: 0 auto;
+  border: 4px solid #4B5563; /* 灰色邊框 */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
-#msg { 
-  text-align: center; 
-  margin-top: 15px; 
-  color: #90ee90; /* 淺綠色，表示成功或提示 */
-  font-size: 1.1em;
-  font-weight: 500;
+/* 遊戲訊息 Modal 樣式 (關鍵：實現置中覆蓋) */
+#message-box {
+    /* Fixed 定位確保它跟隨視窗，不隨滾動條移動 */
+    position: fixed; 
+    /* 讓它覆蓋整個螢幕 */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    /* 增加背景遮罩，讓下層畫面變暗 */
+    background-color: rgba(0, 0, 0, 0.8); 
+    /* 確保它在最上層 */
+    z-index: 1000; 
+    /* 使用 Flexbox 讓內容在中央 */
+    display: flex; 
+    justify-content: center;
+    align-items: center;
 }
 
-#err { 
-  color: #ff6b6b; /* 醒目紅色，表示錯誤 */
-  text-align: center; 
-  margin-top: 10px; 
-  font-size: 1.1em;
-  font-weight: bold;
-  background: rgba(255, 107, 107, 0.1);
-  padding: 5px;
-  border-radius: 4px;
+/* 確保當 .hidden 存在時，message-box 被完全隱藏 */
+#message-box.hidden {
+    display: none !important; 
+}
+
+/* 勝利按鈕樣式調整 */
+.bg-yellow-400 {
+    font-size: 1.25rem;
+    padding: 0.75rem 1.5rem;
 }

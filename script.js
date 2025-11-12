@@ -5,7 +5,7 @@ const ctx = canvas.getContext("2d");
 const scoreDisplay = document.getElementById("score-display"); // 用來顯示分數的元素
 const messageBox = document.getElementById("message-box");   // 用來顯示訊息的元素 (如勝利)
 
-// 遊戲狀態變數 (新增)
+// 遊戲狀態變數
 let score = 0;
 const MAX_SCORE = 10;
 let target = { x: 0, y: 0, radius: 30, visible: false };
@@ -31,7 +31,7 @@ eyeMouthImgs.openEyeCloseMouth.src = "https://i.postimg.cc/wMh6dXYm/3.png";
 eyeMouthImgs.closeEyeOpenMouth.src = "https://i.postimg.cc/kGxndQPW/2.png";
 eyeMouthImgs.closeEyeCloseMouth.src = "https://i.postimg.cc/x8K0SvVH/4.png";
 
-// ---- camera setup (保持不變) ----
+// ---- camera setup ----
 async function setupCamera() {
     const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480 },
@@ -45,7 +45,7 @@ async function setupCamera() {
 }
 
 // ------------------------------------
-// 遊戲輔助函式 (新增)
+// 遊戲輔助函式
 // ------------------------------------
 
 /**
@@ -78,13 +78,10 @@ function updateTargetPosition(canvas, headState) {
     target.x = Math.floor(Math.random() * (canvas.width - targetRadius * 2)) + targetRadius;
     target.y = Math.floor(Math.random() * (canvas.height - targetRadius * 2)) + targetRadius;
     target.visible = true;
-    
-    // ⭐ 移除每次成功的小訊息，避免干擾最終勝利訊息 ⭐
-    // showMessageBox('成功！移動到下一個目標！', 'bg-green-600', 1000); 
 }
 
 /**
- * 處理遊戲重設和重新開始 (新增)
+ * 處理遊戲重設和重新開始
  * 為了讓 HTML onclick 能夠找到，必須是全域函式。
  */
 window.restartGame = function() {
@@ -98,16 +95,21 @@ window.restartGame = function() {
     }
     
     // 重新生成目標，啟動遊戲循環
-    // 使用當前的穩定頭部資訊或預設值
     const currentHeadState = stableHead.scale ? stableHead : { scale: 220 };
     updateTargetPosition(canvas, currentHeadState);
     
     showMessageBox('遊戲重新開始！', 'bg-green-600', 1000); // 短暫提示
+    
+    // ⭐ 關鍵修正：重新啟動偵測迴圈 ⭐
+    if (score < MAX_SCORE && window._isDetectRunning === false && window._detectionLoop) {
+        window._isDetectRunning = true;
+        window._detectionLoop(); // 重新啟動 requestAnimationFrame 迴圈
+    }
 }
 
 
 /**
- * 繪製目標圓點 (新增)
+ * 繪製目標圓點
  * @param {CanvasRenderingContext2D} ctx 
  * @param {object} target 
  */
@@ -134,7 +136,7 @@ function drawTarget(ctx, target) {
 
     // 繪製提示文字
     ctx.fillStyle = 'white';
-    ctx.font = `bold ${target.radius * 0.45}px 'Noto Sans TC'`;
+    ctx.font = `bold ${target.radius * 0.45}px 'Noto Sans TC', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
@@ -145,8 +147,7 @@ function drawTarget(ctx, target) {
 }
 
 /**
- * 檢查關鍵點是否與目標圓點碰撞 (新增)
- * (邏輯保持不變)
+ * 檢查關鍵點是否與目標圓點碰撞
  */
 function checkCollision(keypoints, target, collisionKeypoints) {
     if (!target.visible) return false;
@@ -168,7 +169,7 @@ function checkCollision(keypoints, target, collisionKeypoints) {
 }
 
 /**
- * 顯示分數 (新增)
+ * 顯示分數
  */
 function displayScore(score, maxScore) {
     if (scoreDisplay) {
@@ -177,17 +178,20 @@ function displayScore(score, maxScore) {
 }
 
 /**
- * 顯示遊戲訊息框 (新增 - 模擬 UI 互動)
- * 接收 HTML 內容，並使用 innerHTML
- * @param {string} messageHtml 
- * @param {string} bgColorClass Tailwind background class
- * @param {number} duration 
+ * 顯示遊戲訊息框 (Modal 樣式)
  */
 function showMessageBox(messageHtml, bgColorClass = 'bg-gray-700', duration = 0) {
     if (messageBox) {
-        messageBox.innerHTML = messageHtml; // ⭐ 使用 innerHTML 接受按鈕 ⭐
-        messageBox.className = `mt-4 p-3 ${bgColorClass} text-white rounded-lg`;
+        // 使用 innerHTML 加上內部 div 容器來實現樣式和居中
+        messageBox.innerHTML = `
+            <div class="p-8 ${bgColorClass} text-white rounded-xl shadow-2xl max-w-lg mx-4 text-center">
+                ${messageHtml}
+            </div>
+        `; 
+        
+        // messageBox 本身現在作為全螢幕遮罩
         messageBox.classList.remove('hidden');
+        
         if (duration > 0) {
             setTimeout(() => {
                 messageBox.classList.add('hidden');
@@ -200,6 +204,9 @@ function showMessageBox(messageHtml, bgColorClass = 'bg-gray-700', duration = 0)
 
 
 // ---- 主程式 (整合遊戲邏輯) ----
+window._isDetectRunning = false; // 追蹤偵測循環狀態
+window._detectionLoop = null; // 儲存偵測迴圈的引用
+
 async function runPoseDetection() {
     // 確保所有資源載入
     if (typeof poseDetection === 'undefined' || typeof tf === 'undefined') {
@@ -208,6 +215,9 @@ async function runPoseDetection() {
         return;
     }
 
+    await tf.setBackend('webgl');
+    await tf.ready();
+    
     const detector = await poseDetection.createDetector(
         poseDetection.SupportedModels.MoveNet,
         { 
@@ -246,15 +256,26 @@ async function runPoseDetection() {
 
     const tmpCanvas = document.createElement('canvas');
     const tctx = tmpCanvas.getContext('2d');
+    
+    window._isDetectRunning = true; // 設置狀態為運行中
 
     async function detect() {
+        if (window._isDetectRunning === false || score >= MAX_SCORE) {
+             // 遊戲結束或已停止，不再進行偵測
+            window._isDetectRunning = false;
+            if (score >= MAX_SCORE) {
+                // 清除畫布並繪製最後的目標圓點 (如果需要)
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+                drawTarget(ctx, target);
+            }
+            return;
+        }
+
         requestAnimationFrame(detect);
 
-        // 如果遊戲已結束 (分數達到 MAX_SCORE)，則只需繪製一次最終畫面
-        if (score >= MAX_SCORE && frameCount > 0) {
-            // 不再執行偵測和繪圖循環
-            return; 
-        }
 
         if (frameCount % 2 === 0) {
             const poses = await detector.estimatePoses(video);
@@ -290,13 +311,13 @@ async function runPoseDetection() {
                 // b. 繪製身體部位 (圖層中間 - 包含軀幹和四肢)
                 drawBodyParts(pose.keypoints, stableHead.scale); 
                 
-                // c. 繪製目標圓點 (新增)
+                // c. 繪製目標圓點
                 drawTarget(ctx, target);
 
                 // d. 繪製骨架點 (圖層最上)
                 drawSkeleton(pose.keypoints, stableHead.scale); 
                 
-                // 4. 遊戲邏輯與碰撞偵測 (新增)
+                // 4. 遊戲邏輯與碰撞偵測
                 if (target.visible && checkCollision(pose.keypoints, target, collisionKeypoints)) {
                     score++;
                     displayScore(score, MAX_SCORE);
@@ -304,20 +325,19 @@ async function runPoseDetection() {
                     if (score >= MAX_SCORE) {
                         // 遊戲勝利
                         target.visible = false;
+                        window._isDetectRunning = false; // 停止偵測循環
                         
-                        // ⭐ 顯示持續的勝利訊息和重新開始按鈕 ⭐
+                        // 顯示持續的勝利訊息和重新開始按鈕
                         const victoryHtml = `
                             <p class="text-3xl font-bold mb-4">你成功了！恭喜完成挑戰！</p>
                             <button onclick="restartGame()" 
-                                    class="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold py-2 px-4 rounded-full shadow-lg transition duration-150">
+                                    class="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold py-2 px-4 rounded-full shadow-lg transition duration-150 transform hover:scale-105">
                                 重新開始
                             </button>
                         `;
                         showMessageBox(victoryHtml, 'bg-purple-700');
                         
-                        // 停止偵測循環 (因為 score >= MAX_SCORE)
-                        // 讓 requestAnimationFrame 在下一次檢查時跳出 detect 函式
-                        return; 
+                        return; // 停止當前幀的後續處理
                         
                     } else {
                         // 碰撞成功，更新目標位置
@@ -329,12 +349,15 @@ async function runPoseDetection() {
 
         frameCount++;
     }
-
+    
+    // ⭐ 關鍵修正：將偵測迴圈的引用儲存到全域變數中 ⭐
+    window._detectionLoop = detect; 
+    
     detect();
 }
 
 // ------------------------------------
-// 繪製頭部圖片 (圖層最底) (保持不變)
+// 繪圖函式 (無變動)
 // ------------------------------------
 function drawHeadImage(stableHead, prevState) {
     let img;
@@ -357,9 +380,6 @@ function drawHeadImage(stableHead, prevState) {
     }
 }
 
-// ------------------------------------
-// 繪製身體部位函式 (保持不變)
-// ------------------------------------
 function drawSegment(p1, p2, color, thickness) {
     if (p1.score < 0.3 || p2.score < 0.3) return;
 
@@ -393,52 +413,37 @@ function drawBodyParts(keypoints, headScale) {
     const leftHip = keypoints[11];
     const rightHip = keypoints[12];
     
-    // ------------------------------------
     // 繪製四點多邊形軀幹
-    // ------------------------------------
     if (leftShoulder.score > 0.3 && rightShoulder.score > 0.3 && 
         leftHip.score > 0.3 && rightHip.score > 0.3) {
         
         ctx.beginPath();
-        // 依序連接四個關鍵點
-        ctx.moveTo(leftShoulder.x, leftShoulder.y);  // 1. 左肩
-        ctx.lineTo(rightShoulder.x, rightShoulder.y); // 2. 右肩
-        ctx.lineTo(rightHip.x, rightHip.y);          // 3. 右髖
-        ctx.lineTo(leftHip.x, leftHip.y);            // 4. 左髖
+        ctx.moveTo(leftShoulder.x, leftShoulder.y);  
+        ctx.lineTo(rightShoulder.x, rightShoulder.y); 
+        ctx.lineTo(rightHip.x, rightHip.y);          
+        ctx.lineTo(leftHip.x, leftHip.y);            
         ctx.closePath();
         
-        // 讓軀幹的顏色略微透明，以便在頭部圖片下方有更好的融合效果
         ctx.fillStyle = "rgba(255, 140, 0, 0.9)"; // 橘色，90% 不透明度
         ctx.fill();
         
-        // 選擇性：給軀幹加上一個外框
         ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
         ctx.lineWidth = 2;
         ctx.stroke();
     }
 
-
-    // 右臂
-    drawSegment(keypoints[6], keypoints[8], "#8A2BE2", defaultThickness);       // 右肩-右肘 (藍紫色)
-    drawSegment(keypoints[8], keypoints[10], "#4169E1", defaultThickness * 0.8);  // 右肘-右手腕 (皇家藍)
-
-    // 左臂
-    drawSegment(keypoints[5], keypoints[7], "#8A2BE2", defaultThickness);       // 左肩-左肘 (藍紫色)
-    drawSegment(keypoints[7], keypoints[9], "#4169E1", defaultThickness * 0.8);  // 左肘-左手腕 (皇家藍)
-
-    // 右腿
-    drawSegment(keypoints[12], keypoints[14], "#20B2AA", defaultThickness * 1.1); // 右髖-右膝 (淺海綠)
-    drawSegment(keypoints[14], keypoints[16], "#008080", defaultThickness * 1.0); // 右膝-右腳踝 (青色)
-
-    // 左腿
-    drawSegment(keypoints[11], keypoints[13], "#20B2AA", defaultThickness * 1.1); // 左髖-左膝 (淺海綠)
-    drawSegment(keypoints[13], keypoints[15], "#008080", defaultThickness * 1.0); // 左膝-左腳踝 (青色)
+    // 繪製四肢
+    drawSegment(keypoints[6], keypoints[8], "#8A2BE2", defaultThickness);       
+    drawSegment(keypoints[8], keypoints[10], "#4169E1", defaultThickness * 0.8);  
+    drawSegment(keypoints[5], keypoints[7], "#8A2BE2", defaultThickness);       
+    drawSegment(keypoints[7], keypoints[9], "#4169E1", defaultThickness * 0.8);  
+    drawSegment(keypoints[12], keypoints[14], "#20B2AA", defaultThickness * 1.1); 
+    drawSegment(keypoints[14], keypoints[16], "#008080", defaultThickness * 1.0); 
+    drawSegment(keypoints[11], keypoints[13], "#20B2AA", defaultThickness * 1.1); 
+    drawSegment(keypoints[13], keypoints[15], "#008080", defaultThickness * 1.0); 
 }
 
-
-// ---- 繪製骨架 (保持不變) ----
 function drawSkeleton(keypoints, headScale = 220) {
-    // 保持不變，只繪製關節點 (圓點)
     
     keypoints.forEach(kp => {
         if (kp.score > 0.3) {
@@ -462,7 +467,6 @@ function drawSkeleton(keypoints, headScale = 220) {
 
 function getBodyPart(keypoint, headScale = 220) {
     const scaleFactor = headScale / 220;
-    // 保持骨架點的定義，用於 drawSkeleton 繪製圓點
     switch (keypoint.part) {
         case "nose": return { color: "#FFD740", radius: Math.round(30 * scaleFactor) };
         case "leftShoulder": case "rightShoulder":
@@ -476,7 +480,7 @@ function getBodyPart(keypoint, headScale = 220) {
 }
 
 // ------------------------------------
-// 計算頭部狀態 (保持不變)
+// 姿勢偵測與狀態計算 (無變動)
 // ------------------------------------
 function calculateHeadState(keypoints, stableHead, prevState, lowerLipYFromROI) {
     const nose = keypoints[0];
@@ -516,7 +520,7 @@ function calculateHeadState(keypoints, stableHead, prevState, lowerLipYFromROI) 
     headSize = Math.max(MIN_HEAD, Math.min(MAX_HEAD, headSize));
     stableHead.scale += (headSize - stableHead.scale) * 0.15;
 
-    // 4. 嘴巴偵測 (邏輯保持不變)
+    // 4. 嘴巴偵測
     if (prevState._mouthOpenCounter === undefined) prevState._mouthOpenCounter = 0;
     if (prevState._mouthCloseCounter === undefined) prevState._mouthCloseCounter = 0;
     if (prevState._smoothedNormalized === undefined) prevState._smoothedNormalized = 0;
@@ -691,12 +695,14 @@ function estimateLowerLipYFromFrame(keypoints, videoEl, tctx, tmpCanvas, opts = 
 }
 
 // 啟動
-runPoseDetection().catch(e => {
-    console.error('runPoseDetection error', e);
-    // 檢查錯誤是否為攝影機權限相關，並給予提示
-    const message = e.name === 'NotAllowedError' ? 
-        '錯誤：攝影機權限被拒絕。請檢查瀏覽器和作業系統的權限設定。' : 
-        `錯誤：無法啟動視訊偵測。(${e.name})`;
-        
-    showMessageBox(message, 'bg-red-700', 5000);
-});
+window.onload = function() {
+    runPoseDetection().catch(e => {
+        console.error('runPoseDetection error', e);
+        // 檢查錯誤是否為攝影機權限相關，並給予提示
+        const message = e.name === 'NotAllowedError' ? 
+            '錯誤：攝影機權限被拒絕。請檢查瀏覽器和作業系統的權限設定。' : 
+            `錯誤：無法啟動視訊偵測。(${e.name})`;
+            
+        showMessageBox(message, 'bg-red-700', 5000);
+    });
+};

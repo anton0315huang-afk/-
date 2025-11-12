@@ -5,53 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>姿勢偵測碰撞遊戲</title>
   
+  <!-- 引入 Tailwind CSS 確保類別可用 -->
   <script src="https://cdn.tailwindcss.com"></script>
   
+  <!-- 引入 TensorFlow 和 Pose Detection 函式庫 -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
   
-  <style>
-    /* 讓 canvas 居中且有外觀 */
-    .game-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        margin-top: 20px;
-    }
-    #canvas {
-        /* 您可以在 styles.css 中定義更多樣式，這裡先做基本邊框 */
-        border: 4px solid #4B5563; /* 灰色邊框 */
-        border-radius: 8px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    }
-    #video {
-        display:none /* 保持隱藏 video，只顯示 canvas */
-    }
-  </style>
-  
+  <!-- 引入樣式表 -->
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="bg-gray-50 min-h-screen p-4 text-center">
-  <h2 class="text-3xl font-bold mb-6 text-gray-800">🎯 姿勢碰撞得分遊戲</h2>
-
-  <div class="game-container">
+<body>
+  <div id="wrap">
     
-    <div id="score-display" 
-         class="text-2xl font-bold mb-4 p-3 bg-indigo-500 text-white rounded-lg shadow-lg w-full max-w-sm">
-        分數: 0/10
+    <h2 class="text-4xl font-extrabold mb-8 text-yellow-400 text-shadow-lg">✨ 姿勢碰撞得分遊戲 ✨</h2>
+
+    <div class="game-container">
+      
+      <div id="score-display" 
+          class="text-2xl font-bold mb-4 p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-xl w-full max-w-sm transition duration-150">
+          分數: 0/10
+      </div>
+
+      <!-- video 保持隱藏 -->
+      <video id="video" autoplay playsinline></video>
+      <!-- canvas 繪製區 -->
+      <canvas id="canvas"></canvas>
+      
     </div>
-
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
     
-    <div id="message-box" 
-         class="hidden mt-4 p-4 text-white rounded-xl shadow-2xl font-semibold w-full max-w-md bg-gray-700">
-        遊戲訊息將顯示在這裡！
+    <!-- 訊息框：這裡將使用 fixed Modal 樣式，並由 JS 控制顯示與否 -->
+    <div id="message-box" class="hidden">
+      <!-- 內容會由 JS 寫入 -->
     </div>
 
   </div>
 
+  <!-- 引入遊戲邏輯 -->
   <script src="script.js"></script>
 </body>
 </html>
