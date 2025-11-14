@@ -3,46 +3,54 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>姿勢偵測碰撞遊戲</title>
+  <title>【限時挑戰】姿勢偵測碰撞遊戲</title>
   
-  <!-- 引入 Tailwind CSS 確保類別可用 -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- 引入 TensorFlow 和 Pose Detection 函式庫 -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
   
-  <!-- 引入樣式表 -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div id="wrap">
     
-    <h2 class="text-4xl font-extrabold mb-8 text-yellow-400 text-shadow-lg">✨ 姿勢碰撞得分遊戲 ✨</h2>
+    <h2 class="text-4xl font-extrabold mb-8 text-yellow-400 text-shadow-lg">⏱️ 限時 15 秒！姿勢碰撞得分遊戲 ✨</h2>
 
     <div class="game-container">
       
-      <div id="score-display" 
-          class="text-2xl font-bold mb-4 p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-xl w-full max-w-sm transition duration-150">
-          分數: 0/10
+      <div class="header-info">
+          <div id="score-display" 
+              class="text-2xl font-bold p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-xl w-full max-w-sm transition duration-150">
+              分數: 0/10
+          </div>
+          
+          <div id="timer-display" 
+              class="text-4xl font-extrabold p-3 bg-gray-800 text-green-300 rounded-lg shadow-xl w-full max-w-sm mt-3 border-4 border-gray-600">
+              15.0 s
+          </div>
       </div>
 
-      <!-- video 保持隱藏 -->
+      <div class="control-panel">
+          <button id="camera-toggle-btn" 
+                  onclick="window.toggleCamera()" 
+                  class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-150 transform hover:scale-105">
+              啟動鏡頭
+          </button>
+          <span id="camera-status" class="text-lg text-gray-400">攝影機狀態：未啟動</span>
+      </div>
+
       <video id="video" autoplay playsinline></video>
-      <!-- canvas 繪製區 -->
       <canvas id="canvas"></canvas>
       
     </div>
     
-    <!-- 訊息框：這裡將使用 fixed Modal 樣式，並由 JS 控制顯示與否 -->
     <div id="message-box" class="hidden">
-      <!-- 內容會由 JS 寫入 -->
-    </div>
+      </div>
 
   </div>
 
-  <!-- 引入遊戲邏輯 -->
   <script src="script.js"></script>
 </body>
 </html>
